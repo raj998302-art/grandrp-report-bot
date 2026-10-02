@@ -297,7 +297,8 @@ class OverlayService : Service() {
         val running = BotState.botEnabled
         statusText.text = if (running) "● BOT RUNNING" else "● BOT PAUSED"
         statusText.setTextColor(if (running) 0xFF10B981.toInt() else Color.parseColor("#6B7280"))
-        counterText.text = "${BotState.reportsHandled} reports · ${BotState.handshakesAccepted} handshakes"
+        counterText.text =
+            "${BotState.reportsHandled} reports · ${BotState.handshakesAccepted} handshakes · ${BotState.adminLinesSkipped} admin lines skipped"
         eventText.text = BotState.lastEvent
         if (BotState.lastCommand.isNotEmpty()) {
             commandText.visibility = View.VISIBLE

@@ -33,6 +33,9 @@ class MainActivity : Activity() {
     private lateinit var cooldownInput: EditText
     private lateinit var strictCheck: CheckBox
     private lateinit var autoSendCheck: CheckBox
+    private lateinit var adminNameInput: EditText
+    private lateinit var adminIdInput: EditText
+    private lateinit var otherAdminsInput: EditText
     private lateinit var handshakeCheck: CheckBox
     private lateinit var handshakeKeywordsInput: EditText
     private lateinit var handshakeMinInput: EditText
@@ -111,12 +114,47 @@ class MainActivity : Activity() {
         cooldownInput = input(BotPrefs.getCooldown(this).toString(), InputType.TYPE_CLASS_NUMBER)
         botCard.addView(cooldownInput)
 
-        strictCheck = checkBox("Only reply to real reports ([Num. of reports])")
+        strictCheck = checkBox("Only reply to real player reports ([Num. of reports])")
         botCard.addView(strictCheck)
 
         autoSendCheck = checkBox("Type reply automatically (else copy to clipboard)")
         botCard.addView(autoSendCheck)
         root.addView(botCard)
+
+        // ---------- admin identity (safety) ----------
+        val safetyCard = card()
+        safetyCard.addView(sectionLabel("ADMIN IDENTITY — SAFETY"))
+        safetyCard.addView(hint(
+            "The bot ONLY answers player reports (red ID + yellow text). " +
+                "Your own lines, other admins' lines and <ADM> replies are NEVER answered — " +
+                "replying to an admin can get your account warned."
+        ))
+
+        val adminIds = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        val nameCol = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        nameCol.addView(inputLabel("Your admin name (e.g. ZENUS_CARLOS)"))
+        adminNameInput = input(BotPrefs.getAdminName(this), InputType.TYPE_CLASS_TEXT)
+        nameCol.addView(adminNameInput)
+        adminIds.addView(nameCol, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+
+        val idCol = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(8), 0, 0, 0)
+        }
+        idCol.addView(inputLabel("Your admin ID (e.g. 372)"))
+        adminIdInput = input(BotPrefs.getAdminId(this), InputType.TYPE_CLASS_NUMBER)
+        idCol.addView(adminIdInput)
+        adminIds.addView(idCol, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        safetyCard.addView(adminIds)
+
+        safetyCard.addView(inputLabel("Other admins — never reply to (comma separated)"))
+        otherAdminsInput = input(
+            BotPrefs.getOtherAdminNames(this).joinToString(", "),
+            InputType.TYPE_CLASS_TEXT,
+        )
+        otherAdminsInput.hint = "Kratos_Dominus, Raj_Xoxx, …"
+        safetyCard.addView(otherAdminsInput)
+        root.addView(safetyCard)
 
         // ---------- handshake ----------
         val hsCard = card()
@@ -187,11 +225,12 @@ class MainActivity : Activity() {
         val guideCard = card()
         guideCard.addView(sectionLabel("QUICK START"))
         guideCard.addView(hint(
-            "1. Enable the accessibility service for 'GrandRP ReportBot'\n" +
-                "2. Grant overlay permission and show the floating panel\n" +
-                "3. Open Grand RP Mobile — the bot reads the chat\n" +
-                "4. Reports are auto-answered with your rules\n" +
-                "5. Handshake offers are auto-confirmed (anti-AFK)\n\n" +
+            "1. Fill ADMIN IDENTITY — your name/ID so the bot never replies to itself\n" +
+                "2. Enable the accessibility service for 'GrandRP ReportBot'\n" +
+                "3. Grant overlay permission and show the floating panel\n" +
+                "4. Open Grand RP Mobile — the bot reads the chat\n" +
+                "5. PLAYER reports are auto-answered — admins & your own lines are never touched\n" +
+                "6. Handshake offers are auto-confirmed (anti-AFK)\n\n" +
                 "Tip: edit the command template to match your server's report answer command (e.g. /ans or /re)."
         ))
         root.addView(guideCard)
@@ -359,6 +398,9 @@ class MainActivity : Activity() {
         BotPrefs.setCooldown(this, cooldownInput.text.toString().toIntOrNull() ?: 45)
         BotPrefs.setStrictMarker(this, strictCheck.isChecked)
         BotPrefs.setAutoSend(this, autoSendCheck.isChecked)
+        BotPrefs.setAdminName(this, adminNameInput.text.toString())
+        BotPrefs.setAdminId(this, adminIdInput.text.toString())
+        BotPrefs.setOtherAdminNames(this, otherAdminsInput.text.toString())
         BotPrefs.setHandshakeEnabled(this, handshakeCheck.isChecked)
         BotPrefs.setHandshakeKeywords(this, handshakeKeywordsInput.text.toString().trim().ifEmpty { "handshake" })
         BotPrefs.setHandshakeMinDelay(this, handshakeMinInput.text.toString().toIntOrNull() ?: 2)
@@ -399,6 +441,23 @@ class MainActivity : Activity() {
                         return@setPositiveButton
                     }
                     BotPrefs.setRulesJson(this, json)
+
+                    // also import admin identity/safety settings exported from the dashboard
+                    val settings = parsed.optJSONObject("settings")
+                    if (settings != null) {
+                        val adminName = settings.optString("adminName", "")
+                        if (adminName.isNotEmpty()) BotPrefs.setAdminName(this, adminName)
+                        val adminId = settings.optString("adminId", "")
+                        if (adminId.isNotEmpty()) BotPrefs.setAdminId(this, adminId)
+                        val otherAdmins = settings.optJSONArray("adminNames")
+                        if (otherAdmins != null && otherAdmins.length() > 0) {
+                            BotPrefs.setOtherAdminNames(this, (0 until otherAdmins.length()).map { otherAdmins.optString(it) }.joinToString(","))
+                        }
+                        adminNameInput.setText(BotPrefs.getAdminName(this))
+                        adminIdInput.setText(BotPrefs.getAdminId(this))
+                        otherAdminsInput.setText(BotPrefs.getOtherAdminNames(this).joinToString(", "))
+                    }
+
                     refreshRulesStatus()
                     Toast.makeText(this, "Imported ${rules.length()} rules ✓", Toast.LENGTH_SHORT).show()
                 } catch (e: Exception) {

@@ -33,6 +33,10 @@ class BotAccessibilityService : AccessibilityService() {
     private var lastScanAt = 0L
     private val repliedAt = HashMap<String, Long>()
 
+    /** Report lines already answered this session (exact line text) — never double-reply.
+     *  When a player files a NEW report the [Num. of reports: N] count changes → new line → answered. */
+    private val answeredLines = HashSet<String>()
+
     @Volatile private var handshakeBusy = false
     @Volatile private var replying = false
 
@@ -132,38 +136,65 @@ class BotAccessibilityService : AccessibilityService() {
         val cooldownMs = BotPrefs.getCooldown(this) * 1000L
         val now = System.currentTimeMillis()
 
+        // safety options: only PLAYER reports are answered, admin/self lines are skipped
+        val opts = ReportParser.ParseOptions(
+            adminName = BotPrefs.getAdminName(this),
+            adminId = BotPrefs.getAdminId(this),
+            otherAdminNames = BotPrefs.getOtherAdminNames(this),
+            requireMarker = strict,
+        )
+
         // clear stale cooldowns
         if (repliedAt.size > 200) repliedAt.clear()
+        if (answeredLines.size > 600) answeredLines.clear()
 
         for (line in texts) {
             if (line.length > 300) continue
-            if (strict && !ReportParser.hasReportMarker(line)) continue
-            val report = ReportParser.parseLine(line) ?: continue
 
-            val key = report.playerId ?: report.playerName
-            val last = repliedAt[key] ?: 0
-            if (now - last < cooldownMs) continue
+            when (val result = ReportParser.analyzeLine(line, opts)) {
+                is ReportParser.LineResult.Skipped -> {
+                    // make the safety visible in the overlay (rate-limited, no spam)
+                    if (result.reason == ReportParser.SkipReason.ADMIN || result.reason == ReportParser.SkipReason.SELF) {
+                        BotState.adminLinesSkipped++
+                        if (BotState.adminLinesSkipped % 10 == 1) {
+                            BotState.update("Skipped ${BotState.adminLinesSkipped} admin lines — never replied (safe mode)")
+                            Log.i(TAG, "skipped ${result.reason}: ${result.detail}")
+                        }
+                    }
+                }
+                is ReportParser.LineResult.Report -> {
+                    val report = result.report
 
-            val rules = RuleEngine.loadRules(this)
-            val result = RuleEngine.generateReply(this, report, rules)
-            val command = RuleEngine.buildCommand(this, report, result.reply)
+                    // never answer the same visible line twice
+                    if (answeredLines.contains(report.raw)) continue
 
-            repliedAt[key] = now
-            BotState.reportsHandled++
-            BotState.update(
-                "Replied to ${report.playerName}${report.playerId?.let { "[$it]" } ?: ""}: ${result.intent}",
-                command,
-            )
-            Log.i(TAG, "reply -> $command")
+                    val key = report.playerId ?: report.playerName
+                    val last = repliedAt[key] ?: 0
+                    if (now - last < cooldownMs) continue
 
-            if (BotPrefs.isAutoSend(this)) {
-                replying = true
-                sendReply(root, command, result.reply)
-                handler.postDelayed({ replying = false }, 1500)
-            } else {
-                copyToClipboard(command)
+                    val rules = RuleEngine.loadRules(this)
+                    val reply = RuleEngine.generateReply(this, report, rules)
+                    val command = RuleEngine.buildCommand(this, report, reply.reply)
+
+                    answeredLines.add(report.raw)
+                    repliedAt[key] = now
+                    BotState.reportsHandled++
+                    BotState.update(
+                        "Replied to player ${report.playerName}${report.playerId?.let { "[$it]" } ?: ""}: ${reply.intent}",
+                        command,
+                    )
+                    Log.i(TAG, "reply -> $command")
+
+                    if (BotPrefs.isAutoSend(this)) {
+                        replying = true
+                        sendReply(root, command, reply.reply)
+                        handler.postDelayed({ replying = false }, 1500)
+                    } else {
+                        copyToClipboard(command)
+                    }
+                    return // one reply per scan, keep it human
+                }
             }
-            return // one reply per scan, keep it human
         }
     }
 

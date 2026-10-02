@@ -15,6 +15,9 @@ object BotPrefs {
     private const val KEY_COOLDOWN = "replyCooldown"
     private const val KEY_STRICT_MARKER = "strictReportMarker"
     private const val KEY_AUTO_SEND = "autoSend"
+    private const val KEY_ADMIN_NAME = "adminName"
+    private const val KEY_ADMIN_ID = "adminId"
+    private const val KEY_ADMIN_NAMES = "otherAdminNames"
     private const val KEY_HANDSHAKE_ENABLED = "handshakeEnabled"
     private const val KEY_HANDSHAKE_KEYWORDS = "handshakeKeywords"
     private const val KEY_HANDSHAKE_MIN = "handshakeMinDelay"
@@ -48,6 +51,24 @@ object BotPrefs {
     /** When true, only lines containing "[Num. of reports" are treated as reports (avoids replying to normal chat) */
     fun isStrictMarker(ctx: Context): Boolean = prefs(ctx).getBoolean(KEY_STRICT_MARKER, true)
     fun setStrictMarker(ctx: Context, v: Boolean) = prefs(ctx).edit().putBoolean(KEY_STRICT_MARKER, v).apply()
+
+    /** Your own admin name — the bot never replies to your own messages */
+    fun getAdminName(ctx: Context): String = prefs(ctx).getString(KEY_ADMIN_NAME, "") ?: ""
+    fun setAdminName(ctx: Context, v: String) = prefs(ctx).edit().putString(KEY_ADMIN_NAME, v.trim()).apply()
+
+    /** Your own admin ID — never used as a reply target */
+    fun getAdminId(ctx: Context): String = prefs(ctx).getString(KEY_ADMIN_ID, "") ?: ""
+    fun setAdminId(ctx: Context, v: String) = prefs(ctx).edit().putString(KEY_ADMIN_ID, v.trim()).apply()
+
+    /** Other admin names (comma separated) — the bot never replies to them either */
+    fun getOtherAdminNames(ctx: Context): List<String> =
+        (prefs(ctx).getString(KEY_ADMIN_NAMES, "") ?: "")
+            .split(',')
+            .map { it.trim().lowercase() }
+            .filter { it.isNotEmpty() }
+
+    fun setOtherAdminNames(ctx: Context, v: String) =
+        prefs(ctx).edit().putString(KEY_ADMIN_NAMES, v).apply()
 
     /** When true the bot types into the game input by itself; otherwise it copies the command for you */
     fun isAutoSend(ctx: Context): Boolean = prefs(ctx).getBoolean(KEY_AUTO_SEND, true)

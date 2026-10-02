@@ -12,6 +12,7 @@ object BotState {
     @Volatile var botEnabled: Boolean = true
     @Volatile var reportsHandled: Int = 0
     @Volatile var handshakesAccepted: Int = 0
+    @Volatile var adminLinesSkipped: Int = 0
     @Volatile var lastEvent: String = "Bot idle"
     @Volatile var lastCommand: String = ""
 
@@ -43,6 +44,7 @@ object BotState {
     fun resetCounters() {
         reportsHandled = 0
         handshakesAccepted = 0
+        adminLinesSkipped = 0
         lastEvent = "Counters reset"
         lastCommand = ""
         notifyChanged()

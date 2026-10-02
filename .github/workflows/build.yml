@@ -32,23 +32,31 @@ jobs:
       - name: Rename APK
         run: |
           mkdir -p output
-          cp app/build/outputs/apk/release/app-release.apk output/GrandRP-ReportBot-v1.0.0.apk
+          cp app/build/outputs/apk/release/app-release.apk output/GrandRP-ReportBot-v1.1.0.apk
           ls -la output/
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: GrandRP-ReportBot-APK
-          path: output/GrandRP-ReportBot-v1.0.0.apk
+          path: output/GrandRP-ReportBot-v1.1.0.apk
           retention-days: 90
 
       - name: Create GitHub Release with APK
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.0
-          name: GrandRP ReportBot v1.0.0
+          tag_name: v1.1.0
+          name: GrandRP ReportBot v1.1.0 — Player reports only (safety update)
           body: |
             Auto-reply bot for Grand RP Mobile admins.
+
+            **v1.1.0 — PLAYER REPORTS ONLY (safety update)**
+            - Only genuine player reports (red ID + yellow text, `[Num. of reports: N]`) are answered
+            - Admin replies (`<ADM> … has replied to …`) are NEVER answered
+            - Your own admin name/ID is never used as a reply target — fill it in ADMIN IDENTITY
+            - New: list of other admin names the bot must never reply to
+            - Same report line is never answered twice per session
+            - Overlay now shows how many admin lines were safely skipped
 
             **Features**
             - Auto-replies to player reports with admin-style answers ("Greetings, …")
@@ -60,7 +68,7 @@ jobs:
             - Custom rules via JSON import from the web dashboard
 
             **Install**: download the APK below, allow "Install from unknown sources" and open it.
-          files: output/GrandRP-ReportBot-v1.0.0.apk
+          files: output/GrandRP-ReportBot-v1.1.0.apk
           draft: false
           prerelease: false
         env:
