@@ -32,31 +32,41 @@ jobs:
       - name: Rename APK
         run: |
           mkdir -p output
-          cp app/build/outputs/apk/release/app-release.apk output/GrandRP-ReportBot-v1.1.0.apk
+          cp app/build/outputs/apk/release/app-release.apk output/GrandRP-ReportBot-v1.2.0.apk
           ls -la output/
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: GrandRP-ReportBot-APK
-          path: output/GrandRP-ReportBot-v1.1.0.apk
+          path: output/GrandRP-ReportBot-v1.2.0.apk
           retention-days: 90
 
       - name: Create GitHub Release with APK
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.1.0
-          name: GrandRP ReportBot v1.1.0 — Player reports only (safety update)
+          tag_name: v1.2.0
+          name: GrandRP ReportBot v1.2.0 — Report detection fix (fragmented lines)
           body: |
             Auto-reply bot for Grand RP Mobile admins.
 
-            **v1.1.0 — PLAYER REPORTS ONLY (safety update)**
+            **v1.2.0 — REPORT DETECTION FIX**
+            - FIXED: player reports were skipped because the game renders a report
+              line in multiple colors (yellow name / red ID / white message / red counter)
+              and Android delivers it as separate text fragments — the bot now
+              reassembles those fragments automatically
+            - Reports hidden inside one big chat blob (no line breaks) are now detected too
+            - Replies are NEVER sent without the reporting player's ID (user's ID only)
+            - New overlay **Debug** button: copies the raw screen text the bot sees so
+              you can paste it in the dashboard simulator and verify detection
+            - Admin-line skip counter now counts unique lines (no rescan inflation)
+
+            **v1.1.0 safety features (still active)**
             - Only genuine player reports (red ID + yellow text, `[Num. of reports: N]`) are answered
             - Admin replies (`<ADM> … has replied to …`) are NEVER answered
             - Your own admin name/ID is never used as a reply target — fill it in ADMIN IDENTITY
-            - New: list of other admin names the bot must never reply to
+            - List of other admin names the bot must never reply to
             - Same report line is never answered twice per session
-            - Overlay now shows how many admin lines were safely skipped
 
             **Features**
             - Auto-replies to player reports with admin-style answers ("Greetings, …")
@@ -68,7 +78,7 @@ jobs:
             - Custom rules via JSON import from the web dashboard
 
             **Install**: download the APK below, allow "Install from unknown sources" and open it.
-          files: output/GrandRP-ReportBot-v1.1.0.apk
+          files: output/GrandRP-ReportBot-v1.2.0.apk
           draft: false
           prerelease: false
         env:

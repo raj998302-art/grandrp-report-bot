@@ -20,7 +20,7 @@ class BotAccessibilityService : AccessibilityService() {
 
     companion object {
         private const val TAG = "GRBot"
-        private const val MAX_NODES = 500
+        private const val MAX_NODES = 1500
 
         private val ACCEPT_WORDS = listOf(
             "accept", "confirm", "agree", "yes", "ok", "allow", "sure", "handshake",
@@ -36,6 +36,10 @@ class BotAccessibilityService : AccessibilityService() {
     /** Report lines already answered this session (exact line text) — never double-reply.
      *  When a player files a NEW report the [Num. of reports: N] count changes → new line → answered. */
     private val answeredLines = HashSet<String>()
+
+    /** Admin/self lines already counted this session — the skip counter stays honest
+     *  (unique lines, not rescans of the same line). */
+    private val seenSkipLines = HashSet<String>()
 
     @Volatile private var handshakeBusy = false
     @Volatile private var replying = false
@@ -93,6 +97,9 @@ class BotAccessibilityService : AccessibilityService() {
         val texts = collectTexts(root)
         if (texts.isEmpty()) return
 
+        // keep the raw screen text for the overlay Debug button (what the bot sees)
+        BotState.recordSeenLines(texts)
+
         // 1) handshake protection first (anti-AFK test)
         if (BotPrefs.isHandshakeEnabled(this) && !handshakeBusy) {
             checkHandshake(texts, root)
@@ -103,13 +110,15 @@ class BotAccessibilityService : AccessibilityService() {
         handleReports(texts, root)
     }
 
+    /** Document-order (pre-order DFS) text collection — keeps fragments of one
+     *  visual chat line adjacent so ReportParser can reassemble them. */
     private fun collectTexts(root: AccessibilityNodeInfo): List<String> {
         val out = ArrayList<String>(64)
-        val queue = ArrayDeque<AccessibilityNodeInfo>()
-        queue.add(root)
+        val stack = ArrayDeque<AccessibilityNodeInfo>()
+        stack.addLast(root)
         var visited = 0
-        while (queue.isNotEmpty() && visited < MAX_NODES) {
-            val node = queue.removeFirst()
+        while (stack.isNotEmpty() && visited < MAX_NODES) {
+            val node = stack.removeLast()
             visited++
             try {
                 node.text?.let { if (it.isNotBlank()) out.add(it.toString()) }
@@ -117,8 +126,9 @@ class BotAccessibilityService : AccessibilityService() {
                     val s = it.toString()
                     if (s.isNotBlank() && s.length < 400) out.add(s)
                 }
-                for (i in 0 until node.childCount) {
-                    node.getChild(i)?.let { queue.add(it) }
+                // push children in reverse so they pop in visual order
+                for (i in node.childCount - 1 downTo 0) {
+                    node.getChild(i)?.let { stack.addLast(it) }
                 }
             } catch (e: Exception) {
                 // node might be stale; keep scanning
@@ -147,23 +157,35 @@ class BotAccessibilityService : AccessibilityService() {
         // clear stale cooldowns
         if (repliedAt.size > 200) repliedAt.clear()
         if (answeredLines.size > 600) answeredLines.clear()
+        if (seenSkipLines.size > 400) seenSkipLines.clear()
 
-        for (line in texts) {
-            if (line.length > 300) continue
+        // full analysis: handles fragmented multi-color report lines, big chat
+        // blobs, newlines — every result carries its own safety verdict
+        val results = ReportParser.analyzeTexts(texts, opts)
 
-            when (val result = ReportParser.analyzeLine(line, opts)) {
+        for (result in results) {
+            when (result) {
                 is ReportParser.LineResult.Skipped -> {
-                    // make the safety visible in the overlay (rate-limited, no spam)
+                    // make the safety visible in the overlay — unique lines only
                     if (result.reason == ReportParser.SkipReason.ADMIN || result.reason == ReportParser.SkipReason.SELF) {
-                        BotState.adminLinesSkipped++
-                        if (BotState.adminLinesSkipped % 10 == 1) {
-                            BotState.update("Skipped ${BotState.adminLinesSkipped} admin lines — never replied (safe mode)")
-                            Log.i(TAG, "skipped ${result.reason}: ${result.detail}")
+                        if (seenSkipLines.add(result.line)) {
+                            BotState.adminLinesSkipped++
+                            if (BotState.adminLinesSkipped % 10 == 1) {
+                                BotState.update("Skipped ${BotState.adminLinesSkipped} admin lines — never replied (safe mode)")
+                                Log.i(TAG, "skipped ${result.reason}: ${result.detail}")
+                            }
                         }
                     }
                 }
                 is ReportParser.LineResult.Report -> {
                     val report = result.report
+
+                    // a report without the user's ID is never answered — the
+                    // command may only ever contain a player ID, never a guess
+                    if (report.playerId == null) {
+                        Log.w(TAG, "report without player ID skipped: ${report.raw}")
+                        continue
+                    }
 
                     // never answer the same visible line twice
                     if (answeredLines.contains(report.raw)) continue

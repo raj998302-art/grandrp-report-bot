@@ -145,7 +145,7 @@ class OverlayService : Service() {
         statusText = TextView(this).apply {
             text = "● BOT RUNNING"
             setTextColor(0xFF10B981.toInt())
-            textSize = 13f
+            textSize = 12f
             typeface = Typeface.DEFAULT_BOLD
         }
         header.addView(statusText, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
@@ -200,15 +200,15 @@ class OverlayService : Service() {
             val b = Button(this, null, 0).apply {
                 text = label
                 isAllCaps = false
-                textSize = 12f
+                textSize = 11f
                 setTextColor(if (primary) 0xFF0C0F0D.toInt() else 0xFFE7ECE9.toInt())
                 background = roundedBg(
                     if (primary) 0xFF10B981.toInt() else 0xFF1E241F.toInt(),
                     if (primary) 0xFF10B981.toInt() else 0xFF263029.toInt(),
                     dp(10),
                 )
-                setPadding(dp(10), 0, dp(10), 0)
-                minimumHeight = dp(34)
+                setPadding(dp(6), 0, dp(6), 0)
+                minimumHeight = dp(32)
                 setOnClickListener { onClick(this) }
             }
             return b
@@ -221,15 +221,26 @@ class OverlayService : Service() {
             b.text = if (newVal) "Pause" else "Resume"
             refreshUi()
         }
-        buttons.addView(pauseBtn, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply { rightMargin = dp(6) })
+        buttons.addView(pauseBtn, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply { rightMargin = dp(4) })
 
-        val copyBtn = btn("Copy last", true) { _ ->
+        val copyBtn = btn("Copy", true) { _ ->
             if (BotState.lastCommand.isNotEmpty()) {
                 val cm = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
                 cm.setPrimaryClip(android.content.ClipData.newPlainText("bot command", BotState.lastCommand))
             }
         }
-        buttons.addView(copyBtn, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        buttons.addView(copyBtn, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply { rightMargin = dp(4) })
+
+        // Debug: copies the raw screen texts the accessibility service just saw,
+        // so the admin can paste them into the dashboard simulator to check
+        // exactly which lines the bot detects as reports
+        val debugBtn = btn("Debug", false) { _ ->
+            val dump = BotState.dumpSeenLines()
+            val cm = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+            cm.setPrimaryClip(android.content.ClipData.newPlainText("bot screen text", dump))
+            BotState.update("Debug: ${dump.lines().size} screen lines copied — paste into dashboard simulator")
+        }
+        buttons.addView(debugBtn, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
 
         root.addView(buttons, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT))
 

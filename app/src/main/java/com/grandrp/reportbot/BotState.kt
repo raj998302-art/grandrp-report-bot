@@ -16,6 +16,24 @@ object BotState {
     @Volatile var lastEvent: String = "Bot idle"
     @Volatile var lastCommand: String = ""
 
+    /** Ring buffer of the last raw screen texts — "what the bot sees".
+     *  Copied to clipboard by the overlay Debug button so the admin can paste
+     *  it into the dashboard simulator to verify detection. */
+    private val seenLinesBuf = ArrayDeque<String>(48)
+
+    fun recordSeenLines(texts: List<String>) {
+        synchronized(seenLinesBuf) {
+            for (t in texts) {
+                val s = t.trim()
+                if (s.isEmpty()) continue
+                seenLinesBuf.addLast(s)
+                if (seenLinesBuf.size > 40) seenLinesBuf.removeFirst()
+            }
+        }
+    }
+
+    fun dumpSeenLines(): String = synchronized(seenLinesBuf) { seenLinesBuf.joinToString("\n") }
+
     private val listeners = CopyOnWriteArrayList<() -> Unit>()
 
     fun addListener(listener: () -> Unit) {
@@ -47,6 +65,7 @@ object BotState {
         adminLinesSkipped = 0
         lastEvent = "Counters reset"
         lastCommand = ""
+        synchronized(seenLinesBuf) { seenLinesBuf.clear() }
         notifyChanged()
     }
 }
