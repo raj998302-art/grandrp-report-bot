@@ -191,7 +191,10 @@ class OverlayService : Service() {
         // action buttons
         val buttons = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            topMargin = dp(8)
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+            ).apply { topMargin = dp(8) }
         }
         fun btn(label: String, primary: Boolean, onClick: (Button) -> Unit): Button {
             val b = Button(this, null, 0).apply {
